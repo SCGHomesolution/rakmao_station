@@ -8,11 +8,7 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: "Prompt", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -28,63 +24,129 @@
       padding: 24px 20px;
       border-radius: 16px;
       box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
-      max-width: 360px;
+      max-width: 400px;
       width: 100%;
       text-align: center;
     }
 
     .spinner {
-      width: 32px;
-      height: 32px;
+      width: 32px; height: 32px;
       border-radius: 50%;
       border: 4px solid #e0e0e0;
       border-top-color: #00c851;
       animation: spin 0.8s linear infinite;
       margin: 0 auto 12px;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    #message {
-      font-size: 15px;
-      color: #333;
-    }
+    #message { font-size: 15px; color: #333; }
 
     #error {
-      margin-top: 12px;
-      font-size: 13px;
-      color: #d93025;
+      margin-top: 12px; font-size: 13px;
+      color: #d93025; word-break: break-all;
+    }
+
+    /* ===== Setup Panel ===== */
+    #setup-panel { display: none; margin-top: 16px; text-align: left; }
+
+    #setup-panel h3 {
+      font-size: 14px; color: #d93025;
+      margin-bottom: 8px; text-align: center;
+    }
+
+    .info-row {
+      background: #f8f9fa; border: 1px solid #e0e0e0;
+      border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 8px; font-size: 13px;
       word-break: break-all;
+    }
+    .info-row .label {
+      font-weight: 600; color: #666;
+      display: block; margin-bottom: 2px;
+      font-size: 11px; text-transform: uppercase;
+    }
+    .info-row .value {
+      color: #333; font-family: monospace; font-size: 12px;
+      user-select: all;
+    }
+    .info-row .value.highlight {
+      color: #d93025; font-weight: 600; font-size: 13px;
+    }
+
+    .mapping-code {
+      background: #1e1e1e; color: #ce9178;
+      border-radius: 6px; padding: 8px 10px;
+      font-family: monospace; font-size: 11px;
+      margin-top: 6px; user-select: all;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      display: block; width: 100%; margin-top: 12px; padding: 10px;
+      background: #00c851; color: white; border: none;
+      border-radius: 8px; font-family: "Prompt", sans-serif;
+      font-size: 14px; cursor: pointer;
+    }
+    .copy-btn:active { background: #00a843; }
+
+    .skip-btn {
+      display: block; width: 100%; margin-top: 8px; padding: 10px;
+      background: #f0f0f0; color: #666; border: none;
+      border-radius: 8px; font-family: "Prompt", sans-serif;
+      font-size: 13px; cursor: pointer;
+    }
+    .skip-btn:active { background: #e0e0e0; }
+
+    .hint {
+      margin-top: 10px; font-size: 11px;
+      color: #999; text-align: center; line-height: 1.5;
     }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="spinner"></div>
+    <div class="spinner" id="spinner"></div>
     <div id="message">กำลังตรวจสอบข้อมูลผู้ใช้ LINE...</div>
     <div id="error"></div>
+    <div id="setup-panel"></div>
   </div>
 
   <script>
-    const LIFF_ID = "2008146540-2ugX8ibi";
-    const GLIDE_BASE_URL = "https://ezy.rakmao.com/dl/818fd2";
+    // ================================================================
+    //  CONFIG
+    // ================================================================
+    var LIFF_ID = "2008146540-2ugX8ibi";
+    var GLIDE_BASE_URL = "https://ezy.rakmao.com/dl/818fd2";
 
-    // ⚠️ คำเตือนด้านความปลอดภัย:
-    // การใส่ Channel Access Token ในฝั่ง client (GitHub Pages) จะทำให้ token ถูกเปิดเผย
-    // ใครก็ตามที่ดู source code จะเห็น token นี้
-    // แนะนำใช้ Cloudflare Worker เป็น proxy แทน (ดูคอมเมนต์ด้านล่าง)
-    //
-    // ทางเลือก: ถ้ารู้ groupId ล่วงหน้า สามารถ hardcode mapping groupId → storeCode
-    // ใน GROUP_ID_MAP ด้านล่างแทนได้ โดยไม่ต้องเรียก LINE API เลย
-    const LINE_CHANNEL_ACCESS_TOKEN = "YtgjeBxc1JRtkRJfW5F5xuW4r3e8V5B9VvTXIrJc45mglDU+MjukHFr9g2Cvho8jv54hWSYHlA+umhz+YTVQEfTKL/mjOmebfwZdnf/B2bFnQkGmZyQHVCjGygFQGwFwFyZTGW4WXxNTaf72s8OB7QdB04t89/1O/w1cDnyilFU=";
+    // ================================================================
+    //  GROUP ID → STORE CODE MAPPING
+    // ================================================================
+    //  เปิด LIFF จากกลุ่ม:
+    //    - groupId อยู่ใน MAP  → redirect ทันทีพร้อม &storeid=HPxx
+    //    - groupId ไม่อยู่ใน MAP → ค้างหน้าจอ แสดง groupId ให้ copy
+    //  เปิดจาก 1:1 chat / external → redirect ปกติ (ไม่มี storeid)
+    // ================================================================
+    var GROUP_ID_MAP = {
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP1",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP2",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP3",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP4",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP5",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP6",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP7",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP8",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP9",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP10",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP11",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP12",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP13",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP14",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP15",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP16",
+      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP17",
+    };
 
-    // ===== ตาราง Mapping รหัสสาขา =====
-    // ใช้ regex HP\d+ จับจากชื่อกลุ่ม แล้ว validate กับตารางนี้
-    const STORE_CODES = {
+    var STORE_NAMES = {
       "HP1":  "รามคำแหง - บางกะปี",
       "HP2":  "ปิ่นเกล้า",
       "HP3":  "ศรินครินทร์ - บางนา",
@@ -104,97 +166,98 @@
       "HP17": "บางบอน-กาญจนาภิเบก",
     };
 
-    // (ทางเลือก) Hardcode mapping groupId → storeCode
-    // ถ้ารู้ groupId ล่วงหน้า ใส่ตรงนี้แทนเพื่อไม่ต้องเรียก LINE API
-    // แล้วเปลี่ยน resolveStoreId() ให้ lookup จากตารางนี้แทน
-    const GROUP_ID_MAP = {
-      // "C1234567890abcdef...": "HP17",
-      // "Cabcdef1234567890...": "HP1",
-    };
+    // เก็บ redirect URL (ไม่มี storeid) ไว้ใช้ตอนกดปุ่ม "ไปต่อ"
+    var pendingRedirectUrl = "";
 
-    let hasRetriedLogin = false;
+    // ================================================================
+    //  SETUP PANEL: แสดงเมื่อ groupId ไม่อยู่ใน MAP
+    // ================================================================
+    function showSetupPanel(groupId, profile) {
+      var $panel = document.getElementById("setup-panel");
+      var $spinner = document.getElementById("spinner");
+      var $message = document.getElementById("message");
 
-    /**
-     * ดึงชื่อกลุ่มจาก LINE Messaging API
-     * ⚠️ ต้อง Bot อยู่ในกลุ่มนั้น ถึงจะเรียกได้
-     */
-    async function getGroupName(groupId) {
-      const res = await fetch(
-        `https://api.line.me/v2/bot/group/${groupId}/summary`,
-        {
-          headers: {
-            Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
-          },
-        }
-      );
-      if (!res.ok) {
-        console.warn(`LINE API error: ${res.status} ${res.statusText}`);
-        return null;
-      }
-      const data = await res.json();
-      return data.groupName || null;
+      $spinner.style.display = "none";
+      $message.textContent = "ยังไม่พบข้อมูลสาขาของกลุ่มนี้";
+
+      var html = '<h3>Group ID ที่ยังไม่ได้ลงทะเบียน</h3>';
+
+      html += '<div class="info-row">'
+            + '<span class="label">Group ID</span>'
+            + '<span class="value highlight" id="group-id-text">' + groupId + '</span>'
+            + '</div>';
+
+      html += '<div class="info-row">'
+            + '<span class="label">Code สำหรับใส่ใน GROUP_ID_MAP</span>'
+            + '<div class="mapping-code">"' + groupId + '": "HPxx",</div>'
+            + '</div>';
+
+      html += '<div class="info-row">'
+            + '<span class="label">เปิดโดย</span>'
+            + '<span class="value">' + ((profile && profile.displayName) || "-") + '</span>'
+            + '</div>';
+
+      html += '<button class="copy-btn" onclick="copyGroupId()">Copy Group ID</button>';
+
+      html += '<button class="skip-btn" onclick="skipToRedirect()">ไปต่อโดยไม่มี storeid →</button>';
+
+      html += '<div class="hint">'
+            + 'นำ Group ID ไปใส่ใน <code>GROUP_ID_MAP</code> ใน index.html<br>'
+            + 'แล้ว deploy ใหม่ — ครั้งหน้าจะ redirect อัตโนมัติ'
+            + '</div>';
+
+      $panel.innerHTML = html;
+      $panel.style.display = "block";
     }
 
-    /**
-     * แปลงชื่อกลุ่ม → รหัสสาขา (HP code)
-     * เช่น "Rakmao station x HP17 Bangbon" → "HP17"
-     */
-    function extractStoreCode(groupName) {
-      if (!groupName) return null;
-
-      // จับ pattern HP ตามด้วยตัวเลข (case-insensitive)
-      const match = groupName.match(/HP\d+/i);
-      if (!match) return null;
-
-      const code = match[0].toUpperCase(); // normalize เป็นตัวพิมพ์ใหญ่
-
-      // validate ว่ามีอยู่ในตาราง
-      if (STORE_CODES[code]) {
-        return code;
+    function copyGroupId() {
+      var el = document.getElementById("group-id-text");
+      var text = el ? el.textContent : "";
+      if (navigator.clipboard && text) {
+        navigator.clipboard.writeText(text).then(function() {
+          var btn = document.querySelector(".copy-btn");
+          btn.textContent = "Copied!";
+          setTimeout(function() { btn.textContent = "Copy Group ID"; }, 2000);
+        });
       }
-
-      // ถ้าไม่ match ตาราง ก็ส่งกลับ code ที่จับได้ (อาจเป็นสาขาใหม่)
-      console.warn(`Store code "${code}" not found in mapping table, using as-is`);
-      return code;
     }
 
-    /**
-     * หา storeId จาก LIFF context
-     * ลำดับ: GROUP_ID_MAP → LINE API → fallback
-     */
-    async function resolveStoreId(context) {
-      // ไม่ได้เปิดจากกลุ่ม → ไม่มี storeid
-      if (!context || context.type !== "group" || !context.groupId) {
-        return null;
+    function skipToRedirect() {
+      if (pendingRedirectUrl) {
+        window.location.replace(pendingRedirectUrl);
       }
+    }
 
-      const groupId = context.groupId;
-
-      // 1) ลอง lookup จาก hardcode map ก่อน (เร็ว, ไม่ต้อง API)
-      if (GROUP_ID_MAP[groupId]) {
-        return GROUP_ID_MAP[groupId];
-      }
-
-      // 2) เรียก LINE API ดึงชื่อกลุ่ม แล้ว extract code
+    // ================================================================
+    //  BUILD REDIRECT URL
+    // ================================================================
+    function buildRedirectUrl(udid, name, imageProfile, storeId) {
       try {
-        const groupName = await getGroupName(groupId);
-        console.log("Group name:", groupName);
-
-        const storeCode = extractStoreCode(groupName);
-        if (storeCode) {
-          return storeCode;
-        }
+        var url = new URL(GLIDE_BASE_URL);
+        if (udid) url.searchParams.set("udid", udid);
+        if (name) url.searchParams.set("name", name);
+        if (imageProfile) url.searchParams.set("imageprofile", imageProfile);
+        if (storeId) url.searchParams.set("storeid", storeId);
+        return url.toString();
       } catch (e) {
-        console.warn("Failed to resolve group name:", e);
+        var params = new URLSearchParams();
+        if (udid) params.set("udid", udid);
+        if (name) params.set("name", name);
+        if (imageProfile) params.set("imageprofile", imageProfile);
+        if (storeId) params.set("storeid", storeId);
+        var qs = params.toString();
+        return GLIDE_BASE_URL + (qs ? "?" + qs : "");
       }
-
-      // 3) Fallback: ไม่พบ store code → return null
-      return null;
     }
+
+    // ================================================================
+    //  MAIN
+    // ================================================================
+    var hasRetriedLogin = false;
 
     async function main() {
-      const $message = document.getElementById("message");
-      const $error = document.getElementById("error");
+      var $message = document.getElementById("message");
+      var $error = document.getElementById("error");
 
       try {
         await liff.init({ liffId: LIFF_ID });
@@ -205,66 +268,57 @@
           return;
         }
 
-        let udid = "";
-        const idToken = liff.getDecodedIDToken();
-        if (idToken && idToken.sub) {
-          udid = idToken.sub;
-        }
-
-        const profile = await liff.getProfile();
-        const name = profile.displayName || "";
-        const imageProfile = profile.pictureUrl || "";
-
-        if (!udid && profile.userId) {
-          udid = profile.userId;
-        }
-
-        // ===== ดึง storeId จากกลุ่ม =====
-        $message.textContent = "กำลังตรวจสอบข้อมูลสาขา...";
-        const context = liff.getContext();
-        const storeId = await resolveStoreId(context);
-        console.log("Context type:", context?.type, "| StoreId:", storeId);
-
-        // ===== สร้าง redirect URL =====
-        let redirectUrl = GLIDE_BASE_URL;
+        // ---- Get User Info ----
+        var udid = "";
         try {
-          const url = new URL(GLIDE_BASE_URL);
-          if (udid) url.searchParams.set("udid", udid);
-          if (name) url.searchParams.set("name", name);
-          if (imageProfile) url.searchParams.set("imageprofile", imageProfile);
-          if (storeId) url.searchParams.set("storeid", storeId);
-          redirectUrl = url.toString();
-        } catch (e) {
-          const params = new URLSearchParams();
-          if (udid) params.set("udid", udid);
-          if (name) params.set("name", name);
-          if (imageProfile) params.set("imageprofile", imageProfile);
-          if (storeId) params.set("storeid", storeId);
-          const qs = params.toString();
-          redirectUrl = GLIDE_BASE_URL + (qs ? "?" + qs : "");
+          var idToken = liff.getDecodedIDToken();
+          if (idToken && idToken.sub) udid = idToken.sub;
+        } catch (e) { /* ignore */ }
+
+        var profile = await liff.getProfile();
+        var name = profile.displayName || "";
+        var imageProfile = profile.pictureUrl || "";
+        if (!udid && profile.userId) udid = profile.userId;
+
+        // ---- Get Context ----
+        var context = liff.getContext();
+        var storeId = null;
+        var groupId = null;
+
+        if (context && context.type === "group" && context.groupId) {
+          groupId = context.groupId;
+          storeId = GROUP_ID_MAP[groupId] || null;
         }
 
+        // เก็บ redirect URL (ไม่มี storeid) ไว้ใช้กรณีกด "ไปต่อ"
+        pendingRedirectUrl = buildRedirectUrl(udid, name, imageProfile, null);
+
+        // ============================================================
+        //  ตัดสินใจ
+        // ============================================================
+
+        if (groupId && !storeId) {
+          // ═══ เปิดจากกลุ่ม แต่ groupId ยังไม่อยู่ใน MAP ═══
+          // → ค้างหน้าจอ แสดง groupId ให้ copy
+          showSetupPanel(groupId, profile);
+          return;
+        }
+
+        // ═══ redirect ต่อ ═══
+        // กรณี: มี storeId / ไม่ได้เปิดจากกลุ่ม / เปิดจาก 1:1 chat
+        var redirectUrl = buildRedirectUrl(udid, name, imageProfile, storeId);
         $message.textContent = "กำลังพาไปยัง Rakmao Ezy ...";
         window.location.replace(redirectUrl);
 
       } catch (err) {
-        const $message = document.getElementById("message");
-        const $error = document.getElementById("error");
         console.error(err);
+        var errStr = String(err || "");
 
-        const errStr = String(err || "");
-
-        if (!hasRetriedLogin && errStr.toLowerCase().includes("access token expired")) {
+        if (!hasRetriedLogin && errStr.toLowerCase().indexOf("access token expired") !== -1) {
           hasRetriedLogin = true;
           $message.textContent = "กำลังต่ออายุการเข้าสู่ระบบ LINE...";
           $error.textContent = "";
-
-          try {
-            liff.logout();
-          } catch (e) {
-            console.warn("logout error", e);
-          }
-
+          try { liff.logout(); } catch (e) { /* ignore */ }
           liff.login();
           return;
         }
