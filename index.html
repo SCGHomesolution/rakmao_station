@@ -73,7 +73,124 @@
     const LIFF_ID = "2008146540-2ugX8ibi";
     const GLIDE_BASE_URL = "https://ezy.rakmao.com/dl/818fd2";
 
+    // ⚠️ คำเตือนด้านความปลอดภัย:
+    // การใส่ Channel Access Token ในฝั่ง client (GitHub Pages) จะทำให้ token ถูกเปิดเผย
+    // ใครก็ตามที่ดู source code จะเห็น token นี้
+    // แนะนำใช้ Cloudflare Worker เป็น proxy แทน (ดูคอมเมนต์ด้านล่าง)
+    //
+    // ทางเลือก: ถ้ารู้ groupId ล่วงหน้า สามารถ hardcode mapping groupId → storeCode
+    // ใน GROUP_ID_MAP ด้านล่างแทนได้ โดยไม่ต้องเรียก LINE API เลย
+    const LINE_CHANNEL_ACCESS_TOKEN = "YtgjeBxc1JRtkRJfW5F5xuW4r3e8V5B9VvTXIrJc45mglDU+MjukHFr9g2Cvho8jv54hWSYHlA+umhz+YTVQEfTKL/mjOmebfwZdnf/B2bFnQkGmZyQHVCjGygFQGwFwFyZTGW4WXxNTaf72s8OB7QdB04t89/1O/w1cDnyilFU=";
+
+    // ===== ตาราง Mapping รหัสสาขา =====
+    // ใช้ regex HP\d+ จับจากชื่อกลุ่ม แล้ว validate กับตารางนี้
+    const STORE_CODES = {
+      "HP1":  "รามคำแหง - บางกะปี",
+      "HP2":  "ปิ่นเกล้า",
+      "HP3":  "ศรินครินทร์ - บางนา",
+      "HP4":  "บางใหญ่",
+      "HP5":  "มิสทีน",
+      "HP6":  "รัตนาธิเบศร์",
+      "HP7":  "บางบัวทอง",
+      "HP8":  "ร่มเกล้า",
+      "HP9":  "บางแค",
+      "HP10": "เทพารักษ์",
+      "HP11": "สมุทรปราการ - ศรีนครินทร์",
+      "HP12": "ลำลูกกา - สายใหม่",
+      "HP13": "ติวานนท์ - ปากเกล็ด",
+      "HP14": "รามอินทรา - มีนบุรี",
+      "HP15": "กิ่งแก้ว - สุวรรณภูมิ",
+      "HP16": "รังสิต-นครนายก คลอง4",
+      "HP17": "บางบอน-กาญจนาภิเบก",
+    };
+
+    // (ทางเลือก) Hardcode mapping groupId → storeCode
+    // ถ้ารู้ groupId ล่วงหน้า ใส่ตรงนี้แทนเพื่อไม่ต้องเรียก LINE API
+    // แล้วเปลี่ยน resolveStoreId() ให้ lookup จากตารางนี้แทน
+    const GROUP_ID_MAP = {
+      // "C1234567890abcdef...": "HP17",
+      // "Cabcdef1234567890...": "HP1",
+    };
+
     let hasRetriedLogin = false;
+
+    /**
+     * ดึงชื่อกลุ่มจาก LINE Messaging API
+     * ⚠️ ต้อง Bot อยู่ในกลุ่มนั้น ถึงจะเรียกได้
+     */
+    async function getGroupName(groupId) {
+      const res = await fetch(
+        `https://api.line.me/v2/bot/group/${groupId}/summary`,
+        {
+          headers: {
+            Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
+          },
+        }
+      );
+      if (!res.ok) {
+        console.warn(`LINE API error: ${res.status} ${res.statusText}`);
+        return null;
+      }
+      const data = await res.json();
+      return data.groupName || null;
+    }
+
+    /**
+     * แปลงชื่อกลุ่ม → รหัสสาขา (HP code)
+     * เช่น "Rakmao station x HP17 Bangbon" → "HP17"
+     */
+    function extractStoreCode(groupName) {
+      if (!groupName) return null;
+
+      // จับ pattern HP ตามด้วยตัวเลข (case-insensitive)
+      const match = groupName.match(/HP\d+/i);
+      if (!match) return null;
+
+      const code = match[0].toUpperCase(); // normalize เป็นตัวพิมพ์ใหญ่
+
+      // validate ว่ามีอยู่ในตาราง
+      if (STORE_CODES[code]) {
+        return code;
+      }
+
+      // ถ้าไม่ match ตาราง ก็ส่งกลับ code ที่จับได้ (อาจเป็นสาขาใหม่)
+      console.warn(`Store code "${code}" not found in mapping table, using as-is`);
+      return code;
+    }
+
+    /**
+     * หา storeId จาก LIFF context
+     * ลำดับ: GROUP_ID_MAP → LINE API → fallback
+     */
+    async function resolveStoreId(context) {
+      // ไม่ได้เปิดจากกลุ่ม → ไม่มี storeid
+      if (!context || context.type !== "group" || !context.groupId) {
+        return null;
+      }
+
+      const groupId = context.groupId;
+
+      // 1) ลอง lookup จาก hardcode map ก่อน (เร็ว, ไม่ต้อง API)
+      if (GROUP_ID_MAP[groupId]) {
+        return GROUP_ID_MAP[groupId];
+      }
+
+      // 2) เรียก LINE API ดึงชื่อกลุ่ม แล้ว extract code
+      try {
+        const groupName = await getGroupName(groupId);
+        console.log("Group name:", groupName);
+
+        const storeCode = extractStoreCode(groupName);
+        if (storeCode) {
+          return storeCode;
+        }
+      } catch (e) {
+        console.warn("Failed to resolve group name:", e);
+      }
+
+      // 3) Fallback: ไม่พบ store code → return null
+      return null;
+    }
 
     async function main() {
       const $message = document.getElementById("message");
@@ -102,18 +219,27 @@
           udid = profile.userId;
         }
 
+        // ===== ดึง storeId จากกลุ่ม =====
+        $message.textContent = "กำลังตรวจสอบข้อมูลสาขา...";
+        const context = liff.getContext();
+        const storeId = await resolveStoreId(context);
+        console.log("Context type:", context?.type, "| StoreId:", storeId);
+
+        // ===== สร้าง redirect URL =====
         let redirectUrl = GLIDE_BASE_URL;
         try {
           const url = new URL(GLIDE_BASE_URL);
           if (udid) url.searchParams.set("udid", udid);
           if (name) url.searchParams.set("name", name);
           if (imageProfile) url.searchParams.set("imageprofile", imageProfile);
+          if (storeId) url.searchParams.set("storeid", storeId);
           redirectUrl = url.toString();
         } catch (e) {
           const params = new URLSearchParams();
           if (udid) params.set("udid", udid);
           if (name) params.set("name", name);
           if (imageProfile) params.set("imageprofile", imageProfile);
+          if (storeId) params.set("storeid", storeId);
           const qs = params.toString();
           redirectUrl = GLIDE_BASE_URL + (qs ? "?" + qs : "");
         }
