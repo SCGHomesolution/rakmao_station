@@ -45,40 +45,6 @@
       margin-top: 12px; font-size: 13px;
       color: #d93025; word-break: break-all;
     }
-
-    /* ===== Warning Panel ===== */
-    #warning-panel { display: none; margin-top: 16px; }
-
-    .warning-icon {
-      font-size: 48px;
-      margin-bottom: 12px;
-    }
-
-    .warning-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #333;
-      margin-bottom: 8px;
-    }
-
-    .warning-desc {
-      font-size: 13px;
-      color: #888;
-      line-height: 1.6;
-    }
-
-    .warning-id {
-      margin-top: 12px;
-      background: #f8f9fa;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-family: monospace;
-      font-size: 11px;
-      color: #999;
-      word-break: break-all;
-      user-select: all;
-    }
   </style>
 </head>
 <body>
@@ -86,7 +52,6 @@
     <div class="spinner" id="spinner"></div>
     <div id="message">กำลังตรวจสอบข้อมูลผู้ใช้ LINE...</div>
     <div id="error"></div>
-    <div id="warning-panel"></div>
   </div>
 
   <script>
@@ -97,67 +62,12 @@
     var GLIDE_BASE_URL = "https://ezy.rakmao.com/dl/818fd2";
 
     // ================================================================
-    //  GROUP ID → STORE CODE MAPPING
+    //  อ่าน storeid จาก URL parameter
+    //  (Webhook Bot จะส่ง LIFF URL พร้อม ?storeid=HPxx มาแล้ว)
     // ================================================================
-    var GROUP_ID_MAP = {
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP1",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP2",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP3",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP4",
-       "Cda73894dfeead7a6294419f810722167": "HP5",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP6",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP7",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP8",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP9",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP10",
-       "C2242cfdc9ff0e1d23026359794a4bfc3": "HP11",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP12",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP13",
-       "Cc31b0a32e56c1e94fbef4de4440e0832": "HP14",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP15",
-      // "Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "HP16",
-       "C417259d20b6ffadf5c200dfd3e62f5f7": "HP17",
-    };
-
-    var STORE_NAMES = {
-      "HP1":  "รามคำแหง - บางกะปี",
-      "HP2":  "ปิ่นเกล้า",
-      "HP3":  "ศรินครินทร์ - บางนา",
-      "HP4":  "บางใหญ่",
-      "HP5":  "มิสทีน",
-      "HP6":  "รัตนาธิเบศร์",
-      "HP7":  "บางบัวทอง",
-      "HP8":  "ร่มเกล้า",
-      "HP9":  "บางแค",
-      "HP10": "เทพารักษ์",
-      "HP11": "สมุทรปราการ - ศรีนครินทร์",
-      "HP12": "ลำลูกกา - สายใหม่",
-      "HP13": "ติวานนท์ - ปากเกล็ด",
-      "HP14": "รามอินทรา - มีนบุรี",
-      "HP15": "กิ่งแก้ว - สุวรรณภูมิ",
-      "HP16": "รังสิต-นครนายก คลอง4",
-      "HP17": "บางบอน-กาญจนาภิเบก",
-    };
-
-    // ================================================================
-    //  WARNING: แสดงเมื่อ groupId ไม่อยู่ใน MAP
-    // ================================================================
-    function showWarning(groupId) {
-      var $panel = document.getElementById("warning-panel");
-      var $spinner = document.getElementById("spinner");
-      var $message = document.getElementById("message");
-
-      $spinner.style.display = "none";
-      $message.style.display = "none";
-
-      var html = ''
-        + '<div class="warning-icon">⚠️</div>'
-        + '<div class="warning-title">ไม่พบข้อมูลสาขาของกลุ่มนี้</div>'
-        + '<div class="warning-desc">กรุณาติดต่อผู้ดูแลระบบ<br>เพื่อลงทะเบียนกลุ่มนี้</div>'
-        + '<div class="warning-id">Group ID: ' + groupId + '</div>';
-
-      $panel.innerHTML = html;
-      $panel.style.display = "block";
+    function getStoreIdFromUrl() {
+      var params = new URLSearchParams(window.location.search);
+      return params.get("storeid") || params.get("storeId") || params.get("STOREID") || null;
     }
 
     // ================================================================
@@ -192,6 +102,9 @@
       var $error = document.getElementById("error");
 
       try {
+        // อ่าน storeid จาก URL ก่อน (Bot ส่งมาพร้อม LIFF URL)
+        var storeId = getStoreIdFromUrl();
+
         await liff.init({ liffId: LIFF_ID });
 
         if (!liff.isLoggedIn()) {
@@ -212,27 +125,7 @@
         var imageProfile = profile.pictureUrl || "";
         if (!udid && profile.userId) udid = profile.userId;
 
-        // ---- Get Context ----
-        var context = liff.getContext();
-        var storeId = null;
-        var groupId = null;
-
-        if (context && context.type === "group" && context.groupId) {
-          groupId = context.groupId;
-          storeId = GROUP_ID_MAP[groupId] || null;
-        }
-
-        // ============================================================
-        //  ตัดสินใจ
-        // ============================================================
-
-        if (groupId && !storeId) {
-          // กลุ่มนี้ยังไม่มีใน MAP → ค้างหน้าจอ แสดงแจ้งเตือน
-          showWarning(groupId);
-          return;
-        }
-
-        // redirect ต่อ (มี storeId / ไม่ได้เปิดจากกลุ่ม)
+        // ---- Redirect ----
         var redirectUrl = buildRedirectUrl(udid, name, imageProfile, storeId);
         $message.textContent = "กำลังพาไปยัง Rakmao Ezy ...";
         window.location.replace(redirectUrl);
